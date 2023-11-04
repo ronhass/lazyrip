@@ -16,6 +16,7 @@ struct App<'a> {
     prompt: TextArea<'a>,
 
     display_hidden: bool,
+    preview: bool,
 
     raw_result: String,
     result_lines: Vec<String>,
@@ -36,6 +37,7 @@ impl<'a> App<'a> {
             should_quit: false,
             should_restart: false,
             display_hidden: false,
+            preview: true,
             raw_result: String::from(""),
             result_lines: vec![],
             result_items: vec![],
@@ -103,6 +105,14 @@ impl<'a> App<'a> {
                     self.display_hidden = !self.display_hidden;
                     true
                 }
+                Input {
+                    key: Key::Char('p'),
+                    ctrl: true,
+                    ..
+                } => {
+                    self.preview = !self.preview;
+                    false
+                }
                 Input { key: Key::Down, .. } => {
                     self.result_index = match self.result_index {
                         None => None,
@@ -130,12 +140,7 @@ impl<'a> App<'a> {
                     ctrl: true,
                     ..
                 } => {
-                    if let Some(i) = self.result_index {
-                        let result_line = strip_ansi_escapes::strip_str(&self.result_lines[i]);
-                        let mut splitted = result_line.split(":");
-                        let file = splitted.next().unwrap();
-                        let lineno = splitted.next().unwrap();
-
+                    if let Some((file, lineno)) = self.get_current_result() {
                         self.should_restart = true;
                         let _ = Command::new("sh")
                             .arg("-c")
@@ -176,11 +181,28 @@ impl<'a> App<'a> {
             "☐ Show hidden"
         };
         frame.render_widget(Paragraph::new(s).block(Self::default_block()), top_line[1]);
+
+        let results_layout = if self.preview {
+            let body = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(main_layout[1]);
+
+            frame.render_widget(
+                Paragraph::new(self.get_preview(body[0].height.into()))
+                    .block(Self::default_block().title(" Preview ")),
+                body[1],
+            );
+
+            body[0]
+        } else {
+            main_layout[1]
+        };
         frame.render_stateful_widget(
             List::new(&*self.result_items)
-                .block(Self::default_block())
+                .block(Self::default_block().title(" Results "))
                 .highlight_symbol("»"),
-            main_layout[1],
+            results_layout,
             &mut self.result_state,
         );
 
@@ -189,6 +211,8 @@ impl<'a> App<'a> {
             Span::raw(": Navigate results "),
             Span::styled("ENTER", Style::default().fg(Color::Red)),
             Span::raw(": Open file "),
+            Span::styled("<C+p>", Style::default().fg(Color::Red)),
+            Span::raw(": Toggle preview "),
             Span::styled("<C+h>", Style::default().fg(Color::Red)),
             Span::raw(": Toggle search in hidden files "),
             Span::styled("<C+c>", Style::default().fg(Color::Red)),
@@ -243,6 +267,46 @@ impl<'a> App<'a> {
         }
         command.arg(prompt_str);
         command
+    }
+
+    fn get_current_result(&self) -> Option<(String, String)> {
+        match self.result_index {
+            None => None,
+            Some(i) => {
+                let result_line = strip_ansi_escapes::strip_str(&self.result_lines[i]);
+                let mut splitted = result_line.split(":");
+                let file = splitted.next().unwrap();
+                let lineno = splitted.next().unwrap();
+
+                Some((file.to_string(), lineno.to_string()))
+            }
+        }
+    }
+
+    fn get_preview(&self, height: i32) -> Text {
+        match self.get_current_result() {
+            None => Text::from(""),
+            Some((file, lineno)) => {
+                let lineno_int = lineno.parse::<i32>().unwrap();
+                let output = Command::new("bat")
+                    .arg("--color=always")
+                    .arg("-n")
+                    .arg("-H")
+                    .arg(lineno)
+                    .arg("-r")
+                    .arg(format!(
+                        "{}:{}",
+                        std::cmp::max(0, lineno_int - height / 2),
+                        lineno_int + height / 2
+                    ))
+                    .arg(file)
+                    .output()
+                    .unwrap()
+                    .stdout;
+
+                output.into_text().unwrap()
+            }
+        }
     }
 }
 
