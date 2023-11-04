@@ -137,9 +137,9 @@ impl<'a> App<'a> {
                         let lineno = splitted.next().unwrap();
 
                         self.should_restart = true;
-                        let _ = Command::new("nvim")
-                            .arg(format!("+{}", lineno))
-                            .arg(file)
+                        let _ = Command::new("sh")
+                            .arg("-c")
+                            .arg(format!("$EDITOR +{} \"{}\"", lineno, file))
                             .status();
                     }
                     false
