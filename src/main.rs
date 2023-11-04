@@ -157,7 +157,11 @@ impl<'a> App<'a> {
     fn ui(&mut self, frame: &mut Frame) {
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(1)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
             .split(frame.size());
 
         let top_line = Layout::default()
@@ -178,6 +182,21 @@ impl<'a> App<'a> {
                 .highlight_symbol("»"),
             main_layout[1],
             &mut self.result_state,
+        );
+
+        let line = Line::from(vec![
+            Span::styled("↑↓", Style::default().fg(Color::Red)),
+            Span::raw(": Navigate results "),
+            Span::styled("ENTER", Style::default().fg(Color::Red)),
+            Span::raw(": Open file "),
+            Span::styled("<C+h>", Style::default().fg(Color::Red)),
+            Span::raw(": Toggle search in hidden files "),
+            Span::styled("<C+c>", Style::default().fg(Color::Red)),
+            Span::raw(": Quit "),
+        ]);
+        frame.render_widget(
+            Paragraph::new(Text::from(line)).block(Self::default_block()),
+            main_layout[2],
         );
     }
 
