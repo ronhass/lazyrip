@@ -11,7 +11,7 @@ use tui_textarea::{Input, Key, TextArea};
 
 struct App<'a> {
     should_quit: bool,
-    should_restart: bool,
+    should_restart_terminal: bool,
 
     prompt: TextArea<'a>,
 
@@ -35,7 +35,7 @@ impl<'a> App<'a> {
         App {
             prompt: textarea,
             should_quit: false,
-            should_restart: false,
+            should_restart_terminal: false,
             display_hidden: false,
             preview: true,
             raw_result: String::from(""),
@@ -66,11 +66,11 @@ impl<'a> App<'a> {
 
     fn run(&mut self) -> io::Result<()> {
         loop {
-            self.should_restart = false;
+            self.should_restart_terminal = false;
             self.startup()?;
             let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
-            while !self.should_restart {
+            while !self.should_restart_terminal {
                 terminal.draw(|f| {
                     self.ui(f);
                 })?;
@@ -141,7 +141,7 @@ impl<'a> App<'a> {
                     ..
                 } => {
                     if let Some((file, lineno)) = self.get_current_result() {
-                        self.should_restart = true;
+                        self.should_restart_terminal = true;
                         let _ = Command::new("sh")
                             .arg("-c")
                             .arg(format!("$EDITOR +{} \"{}\"", lineno, file))
