@@ -45,28 +45,31 @@ impl<'a> Manager<'a> {
         self.options.show_hidden
     }
 
-    pub fn next(&mut self) {
+    pub fn next(&mut self) -> Result<()> {
         let Some(index) = self.selection_index else {
-            return;
+            return Ok(());
         };
         let Some(job) = self.job.as_ref() else {
-            return;
+            return Ok(());
         };
 
         let num_results = job.current_num_results();
-        self.select(Some((index + 1) % num_results));
+        self.select(Some(if index + 1 == num_results {
+            index
+        } else {
+            index + 1
+        }));
+
+        self.read_results_if_necessary()
     }
 
-    pub fn prev(&mut self) {
+    pub fn prev(&mut self) -> Result<()> {
         let Some(index) = self.selection_index else {
-            return;
-        };
-        let Some(job) = self.job.as_ref() else {
-            return;
+            return Ok(());
         };
 
-        let num_results = job.current_num_results();
-        self.select(Some((index + num_results - 1) % num_results));
+        self.select(Some(if index == 0 { index } else { index - 1 }));
+        Ok(())
     }
 
     fn select(&mut self, selection: Option<usize>) {
@@ -103,14 +106,29 @@ impl<'a> Manager<'a> {
             return Ok(());
         }
 
-        let mut job = ripgrep::Job::new(&self.options)?;
+        self.job = Some(ripgrep::Job::new(&self.options)?);
+        self.read_results_if_necessary()?;
 
-        // TODO: don't read all lines
-        while job.read_next_result()? {}
+        Ok(())
+    }
 
-        let should_select_first = job.current_num_results() > 0;
-        self.job = Some(job);
-        if should_select_first {
+    fn read_results_if_necessary(&mut self) -> Result<()> {
+        let Some(job) = self.job.as_mut() else {
+            return Ok(());
+        };
+
+        let result_number_to_reach = match self.selection_index {
+            None => 100,
+            Some(i) => 100 + i,
+        };
+
+        while job.current_num_results() < result_number_to_reach {
+            if !job.read_next_result()? {
+                break;
+            }
+        }
+
+        if self.selection_index == None && job.current_num_results() > 0 {
             self.select(Some(0));
         }
 

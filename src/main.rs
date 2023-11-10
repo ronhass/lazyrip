@@ -100,8 +100,8 @@ impl<'a> App<'a> {
                     ctrl: true,
                     ..
                 } => self.preview = !self.preview,
-                Input { key: Key::Down, .. } => self.results_manager.next(),
-                Input { key: Key::Up, .. } => self.results_manager.prev(),
+                Input { key: Key::Down, .. } => self.results_manager.next()?,
+                Input { key: Key::Up, .. } => self.results_manager.prev()?,
                 Input { key: Key::Esc, .. } => (),
                 Input {
                     key: Key::Enter, ..
