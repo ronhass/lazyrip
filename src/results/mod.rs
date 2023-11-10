@@ -8,6 +8,7 @@ use std::process::Command;
 pub struct Manager<'a> {
     should_execute: bool,
     job: Option<ripgrep::Job<'a>>,
+    pub show_preview: bool,
 
     options: ripgrep::Options,
 
@@ -20,6 +21,7 @@ impl<'a> Manager<'a> {
         return Manager {
             should_execute: false,
             job: None,
+            show_preview: true,
 
             options: ripgrep::Options {
                 show_hidden: false,
@@ -74,7 +76,20 @@ impl<'a> Manager<'a> {
 
     fn select(&mut self, selection: Option<usize>) {
         self.selection_index = selection;
+        self.update_preview();
+    }
+
+    pub fn toggle_preview(&mut self) {
+        self.show_preview = !self.show_preview;
+        self.update_preview();
+    }
+
+    fn update_preview(&mut self) {
         self.selection_preview = None;
+
+        if !self.show_preview {
+            return;
+        }
 
         let Some(index) = self.selection_index else {
             return;

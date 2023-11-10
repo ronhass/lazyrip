@@ -15,8 +15,6 @@ struct App<'a> {
 
     prompt: TextArea<'a>,
 
-    preview: bool,
-
     results_manager: results::Manager<'a>,
 }
 
@@ -31,7 +29,6 @@ impl<'a> App<'a> {
             prompt: textarea,
             should_quit: false,
             should_restart_terminal: false,
-            preview: true,
             results_manager: results::Manager::new(),
         }
     }
@@ -99,7 +96,7 @@ impl<'a> App<'a> {
                     key: Key::Char('p'),
                     ctrl: true,
                     ..
-                } => self.preview = !self.preview,
+                } => self.results_manager.toggle_preview(),
                 Input { key: Key::Down, .. } => self.results_manager.next()?,
                 Input { key: Key::Up, .. } => self.results_manager.prev()?,
                 Input { key: Key::Esc, .. } => (),
@@ -147,7 +144,7 @@ impl<'a> App<'a> {
         };
         frame.render_widget(Paragraph::new(s).block(Self::default_block()), top_line[1]);
 
-        let results_layout = if self.preview {
+        let results_layout = if self.results_manager.show_preview {
             let body = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
