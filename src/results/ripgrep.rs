@@ -22,6 +22,7 @@ pub struct Job<'a> {
 impl<'a> Job<'a> {
     pub fn new(options: &Options) -> Result<Self> {
         let mut command = Self::build_command(options);
+        command.stderr(Stdio::null());
         let mut process = command.stdout(Stdio::piped()).spawn()?;
         let Some(stdout) = process.stdout.take() else {
             return Err(Error::new(ErrorKind::Other, "No stdout"));
