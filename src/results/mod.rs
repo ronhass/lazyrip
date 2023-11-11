@@ -26,6 +26,7 @@ impl<'a> Manager<'a> {
             options: ripgrep::Options {
                 show_hidden: false,
                 prompt: String::new(),
+                glob: String::new(),
             },
 
             selection_index: None,
@@ -35,6 +36,11 @@ impl<'a> Manager<'a> {
 
     pub fn set_prompt(&mut self, prompt: String) {
         self.options.prompt = prompt;
+        self.should_execute = true;
+    }
+
+    pub fn set_glob(&mut self, glob: String) {
+        self.options.glob = glob;
         self.should_execute = true;
     }
 

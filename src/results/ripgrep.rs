@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub struct Options {
     pub show_hidden: bool,
     pub prompt: String,
+    pub glob: String,
 }
 
 pub struct Job<'a> {
@@ -121,8 +122,12 @@ impl<'a> Job<'a> {
                 "--hidden"
             } else {
                 "--no-hidden"
-            })
-            .arg(&options.prompt);
+            });
+
+        for glob in options.glob.split(";") {
+            command.arg("--glob").arg(glob.trim());
+        }
+        command.arg(&options.prompt);
         command
     }
 }

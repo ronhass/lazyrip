@@ -12,8 +12,10 @@ use tui_textarea::{Input, Key, TextArea};
 struct App<'a> {
     should_quit: bool,
     should_restart_terminal: bool,
+    show_glob: bool,
 
     prompt: TextArea<'a>,
+    glob: TextArea<'a>,
 
     results_manager: results::Manager<'a>,
 }
@@ -25,10 +27,21 @@ impl<'a> App<'a> {
         textarea.set_block(Self::default_block());
         textarea.set_cursor_line_style(Style::default());
 
+        let mut glob_textarea = TextArea::default();
+        glob_textarea.set_placeholder_text("Empty");
+        glob_textarea.set_block(
+            Self::default_block()
+                .title(" Glob (use ; to separate multiple) ")
+                .title_alignment(Alignment::Center),
+        );
+        glob_textarea.set_cursor_line_style(Style::default());
+
         App {
             prompt: textarea,
+            glob: glob_textarea,
             should_quit: false,
             should_restart_terminal: false,
+            show_glob: false,
             results_manager: results::Manager::new(),
         }
     }
@@ -81,43 +94,89 @@ impl<'a> App<'a> {
 
     fn handle_events(&mut self) -> io::Result<()> {
         if event::poll(std::time::Duration::from_millis(50))? {
-            match event::read()?.into() {
-                Input {
-                    key: Key::Char('c'),
-                    ctrl: true,
-                    ..
-                } => self.should_quit = true,
-                Input {
-                    key: Key::Char('h'),
-                    ctrl: true,
-                    ..
-                } => self.results_manager.toggle_hidden(),
-                Input {
-                    key: Key::Char('p'),
-                    ctrl: true,
-                    ..
-                } => self.results_manager.toggle_preview(),
-                Input { key: Key::Down, .. } => self.results_manager.next()?,
-                Input { key: Key::Up, .. } => self.results_manager.prev()?,
-                Input { key: Key::Esc, .. } => (),
-                Input {
-                    key: Key::Enter, ..
-                }
-                | Input {
-                    key: Key::Char('m'),
-                    ctrl: true,
-                    ..
-                } => self.should_restart_terminal = self.results_manager.open_selection(),
-                input => {
-                    if self.prompt.input(input) {
-                        self.results_manager
-                            .set_prompt(self.prompt.lines()[0].clone())
-                    }
-                }
-            };
+            if self.show_glob {
+                self.glob_mode()?;
+            } else {
+                self.main_mode()?;
+            }
 
             self.results_manager.execute()?;
         }
+        Ok(())
+    }
+
+    fn main_mode(&mut self) -> io::Result<()> {
+        match event::read()?.into() {
+            Input {
+                key: Key::Char('c'),
+                ctrl: true,
+                ..
+            } => self.should_quit = true,
+            Input {
+                key: Key::Char('h'),
+                ctrl: true,
+                ..
+            } => self.results_manager.toggle_hidden(),
+            Input {
+                key: Key::Char('p'),
+                ctrl: true,
+                ..
+            } => self.results_manager.toggle_preview(),
+            Input {
+                key: Key::Char('g'),
+                ctrl: true,
+                ..
+            } => self.show_glob = true,
+            Input { key: Key::Down, .. } => self.results_manager.next()?,
+            Input { key: Key::Up, .. } => self.results_manager.prev()?,
+            Input { key: Key::Esc, .. } => (),
+            Input {
+                key: Key::Enter, ..
+            }
+            | Input {
+                key: Key::Char('m'),
+                ctrl: true,
+                ..
+            } => self.should_restart_terminal = self.results_manager.open_selection(),
+            input => {
+                if self.prompt.input(input) {
+                    self.results_manager
+                        .set_prompt(self.prompt.lines()[0].clone())
+                }
+            }
+        };
+
+        Ok(())
+    }
+
+    fn glob_mode(&mut self) -> io::Result<()> {
+        match event::read()?.into() {
+            Input { key: Key::Esc, .. }
+            | Input {
+                key: Key::Char('c'),
+                ctrl: true,
+                ..
+            }
+            | Input {
+                key: Key::Char('g'),
+                ctrl: true,
+                ..
+            }
+            | Input {
+                key: Key::Enter, ..
+            }
+            | Input {
+                key: Key::Char('m'),
+                ctrl: true,
+                ..
+            } => self.show_glob = false,
+            input => {
+                if self.glob.input(input) {
+                    self.results_manager.set_glob(self.glob.lines()[0].clone())
+                }
+            }
+        };
+
         Ok(())
     }
 
@@ -175,6 +234,8 @@ impl<'a> App<'a> {
             Span::raw(": Navigate results "),
             Span::styled("ENTER", Style::default().fg(Color::Red)),
             Span::raw(": Open file "),
+            Span::styled("<C+g>", Style::default().fg(Color::Red)),
+            Span::raw(": Edit glob "),
             Span::styled("<C+p>", Style::default().fg(Color::Red)),
             Span::raw(": Toggle preview "),
             Span::styled("<C+h>", Style::default().fg(Color::Red)),
@@ -186,6 +247,33 @@ impl<'a> App<'a> {
             Paragraph::new(Text::from(line)).block(Self::default_block()),
             main_layout[2],
         );
+
+        if self.show_glob {
+            let popup_area = App::centered_rect(50, 5, frame.size());
+            frame.render_widget(Clear, popup_area);
+            frame.render_widget(self.glob.widget(), popup_area);
+        }
+    }
+
+    /// helper function from ratatui
+    fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+        let popup_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ])
+            .split(r);
+
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ])
+            .split(popup_layout[1])[1]
     }
 }
 
