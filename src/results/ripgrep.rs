@@ -1,8 +1,10 @@
 use ansi_to_tui::IntoText;
 use ratatui::{prelude::*, widgets::*};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
-use std::process::{Child, ChildStdout, Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
+use std::sync::mpsc;
+use std::thread;
 
 pub struct Options {
     pub show_hidden: bool,
@@ -12,8 +14,7 @@ pub struct Options {
 
 pub struct Job<'a> {
     process: Child,
-    reader: BufReader<ChildStdout>,
-    done: bool,
+    rx: mpsc::Receiver<Vec<u8>>,
 
     results_items: Vec<ListItem<'a>>,
     results_files: Vec<Option<String>>,
@@ -28,12 +29,26 @@ impl<'a> Job<'a> {
         let Some(stdout) = process.stdout.take() else {
             return Err(Error::new(ErrorKind::Other, "No stdout"));
         };
-        let reader = BufReader::new(stdout);
+
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let mut reader = BufReader::new(stdout);
+
+            loop {
+                let mut line: Vec<u8> = Vec::new();
+                let num_bytes = reader.read_until(b'\n', &mut line).unwrap_or(0);
+                if num_bytes == 0 {
+                    break;
+                }
+                if let Err(_) = tx.send(line) {
+                    break;
+                }
+            }
+        });
 
         Ok(Job {
             process,
-            reader,
-            done: false,
+            rx,
 
             results_items: Vec::new(),
             results_files: Vec::new(),
@@ -60,13 +75,14 @@ impl<'a> Job<'a> {
         self.results_items.len()
     }
 
-    pub fn read_next_result(&mut self) -> Result<bool> {
-        let mut line: Vec<u8> = Vec::new();
-        if self.reader.read_until(b'\n', &mut line)? == 0 {
-            self.finalize()?;
-            return Ok(false);
+    pub fn try_read_next_result(&mut self) -> Result<()> {
+        match self.rx.try_recv() {
+            Ok(line) => self.read_next_result(line),
+            _ => Ok(()), // TODO: check if disconnected?
         }
+    }
 
+    fn read_next_result(&mut self, line: Vec<u8>) -> Result<()> {
         let text = match line.into_text() {
             Ok(t) => t,
             Err(_) => Text::from("Error"),
@@ -90,7 +106,7 @@ impl<'a> Job<'a> {
         self.results_files.push(file_name);
         self.results_lines.push(line_number);
 
-        Ok(true)
+        Ok(())
     }
 
     fn parse_bytes<T: FromStr>(s: &[u8]) -> Option<T> {
@@ -105,11 +121,9 @@ impl<'a> Job<'a> {
     }
 
     pub fn finalize(&mut self) -> Result<()> {
-        if !self.done {
-            self.process.kill()?;
-            self.process.wait()?;
-            self.done = true;
-        }
+        self.process.kill()?;
+        // TODO: don't wait here?
+        self.process.wait()?;
         Ok(())
     }
 

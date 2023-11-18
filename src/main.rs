@@ -93,15 +93,14 @@ impl<'a> App<'a> {
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
-        if event::poll(std::time::Duration::from_millis(50))? {
+        if event::poll(std::time::Duration::from_millis(10))? {
             if self.show_glob {
                 self.glob_mode()?;
             } else {
                 self.main_mode()?;
             }
-
-            self.results_manager.execute()?;
         }
+        self.results_manager.execute()?;
         Ok(())
     }
 
@@ -127,8 +126,8 @@ impl<'a> App<'a> {
                 ctrl: true,
                 ..
             } => self.show_glob = true,
-            Input { key: Key::Down, .. } => self.results_manager.next()?,
-            Input { key: Key::Up, .. } => self.results_manager.prev()?,
+            Input { key: Key::Down, .. } => self.results_manager.next(),
+            Input { key: Key::Up, .. } => self.results_manager.prev(),
             Input { key: Key::Esc, .. } => (),
             Input {
                 key: Key::Enter, ..

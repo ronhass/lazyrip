@@ -53,31 +53,33 @@ impl<'a> Manager<'a> {
         self.options.show_hidden
     }
 
-    pub fn next(&mut self) -> Result<()> {
-        let Some(index) = self.selection_index else {
-            return Ok(());
-        };
+    pub fn next(&mut self) {
         let Some(job) = self.job.as_ref() else {
-            return Ok(());
+            return;
         };
-
         let num_results = job.current_num_results();
-        self.select(Some(if index + 1 == num_results {
-            index
-        } else {
-            index + 1
-        }));
 
-        self.read_results_if_necessary()
+        match self.selection_index {
+            None => {
+                if num_results > 0 {
+                    self.select(Some(0));
+                }
+            }
+            Some(index) => {
+                if index + 1 < num_results {
+                    self.select(Some(index + 1));
+                }
+            }
+        }
     }
 
-    pub fn prev(&mut self) -> Result<()> {
+    pub fn prev(&mut self) {
         let Some(index) = self.selection_index else {
-            return Ok(());
+            return;
         };
-
-        self.select(Some(if index == 0 { index } else { index - 1 }));
-        Ok(())
+        if index > 0 {
+            self.select(Some(index - 1));
+        }
     }
 
     fn select(&mut self, selection: Option<usize>) {
@@ -113,8 +115,12 @@ impl<'a> Manager<'a> {
 
     pub fn execute(&mut self) -> Result<()> {
         if !self.should_execute {
+            if let Some(j) = self.job.as_mut() {
+                j.try_read_next_result()?;
+            }
             return Ok(());
         }
+
         self.should_execute = false;
 
         if let Some(mut j) = self.job.take() {
@@ -128,31 +134,6 @@ impl<'a> Manager<'a> {
         }
 
         self.job = Some(ripgrep::Job::new(&self.options)?);
-        self.read_results_if_necessary()?;
-
-        Ok(())
-    }
-
-    fn read_results_if_necessary(&mut self) -> Result<()> {
-        let Some(job) = self.job.as_mut() else {
-            return Ok(());
-        };
-
-        let result_number_to_reach = match self.selection_index {
-            None => 100,
-            Some(i) => 100 + i,
-        };
-
-        while job.current_num_results() < result_number_to_reach {
-            if !job.read_next_result()? {
-                break;
-            }
-        }
-
-        if self.selection_index == None && job.current_num_results() > 0 {
-            self.select(Some(0));
-        }
-
         Ok(())
     }
 
