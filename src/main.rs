@@ -93,14 +93,24 @@ impl<'a> App<'a> {
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
-        if event::poll(std::time::Duration::from_millis(10))? {
-            if self.show_glob {
-                self.glob_mode()?;
-            } else {
-                self.main_mode()?;
+        loop {
+            let mut should_rerender = false;
+
+            if event::poll(std::time::Duration::from_millis(10))? {
+                should_rerender = true;
+                if self.show_glob {
+                    self.glob_mode()?;
+                } else {
+                    self.main_mode()?;
+                }
+            }
+
+            should_rerender = self.results_manager.update()? || should_rerender;
+
+            if should_rerender {
+                break;
             }
         }
-        self.results_manager.execute()?;
         Ok(())
     }
 

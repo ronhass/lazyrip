@@ -7,6 +7,7 @@ use std::process::Command;
 
 pub struct Manager<'a> {
     should_execute: bool,
+    should_rerender: bool,
     job: Option<ripgrep::Job<'a>>,
     pub show_preview: bool,
 
@@ -20,6 +21,7 @@ impl<'a> Manager<'a> {
     pub fn new() -> Manager<'a> {
         return Manager {
             should_execute: false,
+            should_rerender: true,
             job: None,
             show_preview: true,
 
@@ -84,11 +86,13 @@ impl<'a> Manager<'a> {
 
     fn select(&mut self, selection: Option<usize>) {
         self.selection_index = selection;
+        self.should_rerender = true;
         self.update_preview();
     }
 
     pub fn toggle_preview(&mut self) {
         self.show_preview = !self.show_preview;
+        self.should_rerender = true;
         self.update_preview();
     }
 
@@ -113,28 +117,39 @@ impl<'a> Manager<'a> {
         self.selection_preview = preview::Preview::new(file_path, line_number);
     }
 
-    pub fn execute(&mut self) -> Result<()> {
-        if !self.should_execute {
-            if let Some(j) = self.job.as_mut() {
-                j.try_read_next_result()?;
-            }
-            return Ok(());
+    pub fn update(&mut self) -> Result<bool> {
+        if self.should_execute {
+            self.execute_job()
+        } else {
+            self.read_jobs()
         }
+    }
 
-        self.should_execute = false;
+    fn execute_job(&mut self) -> Result<bool> {
+        self.select(None);
 
         if let Some(mut j) = self.job.take() {
             j.finalize()?;
         }
 
-        self.select(None);
-
-        if self.options.prompt.len() == 0 {
-            return Ok(());
+        if self.options.prompt.len() > 0 {
+            self.job = Some(ripgrep::Job::new(&self.options)?);
         }
 
-        self.job = Some(ripgrep::Job::new(&self.options)?);
-        Ok(())
+        self.should_execute = false;
+        self.should_rerender = false;
+        Ok(true)
+    }
+
+    fn read_jobs(&mut self) -> Result<bool> {
+        let mut should_rerender = self.should_rerender;
+
+        if let Some(j) = self.job.as_mut() {
+            should_rerender = j.try_read_next_result()? || should_rerender;
+        }
+
+        self.should_rerender = false;
+        Ok(should_rerender)
     }
 
     pub fn get_list(&self) -> List {

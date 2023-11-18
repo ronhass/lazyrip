@@ -75,10 +75,17 @@ impl<'a> Job<'a> {
         self.results_items.len()
     }
 
-    pub fn try_read_next_result(&mut self) -> Result<()> {
+    pub fn try_read_next_result(&mut self) -> Result<bool> {
         match self.rx.try_recv() {
-            Ok(line) => self.read_next_result(line),
-            _ => Ok(()), // TODO: check if disconnected?
+            Ok(line) => {
+                self.read_next_result(line)?;
+                Ok(true)
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.finalize()?;
+                Ok(false)
+            }
+            _ => Ok(false),
         }
     }
 
