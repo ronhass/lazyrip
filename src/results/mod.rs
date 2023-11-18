@@ -145,7 +145,13 @@ impl<'a> Manager<'a> {
         let mut should_rerender = self.should_rerender;
 
         if let Some(j) = self.job.as_mut() {
-            should_rerender = j.try_read_next_result()? || should_rerender;
+            for _ in 1..10 {
+                if j.try_read_next_result()? {
+                    should_rerender = true;
+                } else {
+                    break;
+                }
+            }
         }
 
         self.should_rerender = false;

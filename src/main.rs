@@ -96,7 +96,7 @@ impl<'a> App<'a> {
         loop {
             let mut should_rerender = false;
 
-            if event::poll(std::time::Duration::from_millis(10))? {
+            if event::poll(std::time::Duration::from_millis(20))? {
                 should_rerender = true;
                 if self.show_glob {
                     self.glob_mode()?;
