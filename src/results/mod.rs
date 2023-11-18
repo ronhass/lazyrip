@@ -9,6 +9,7 @@ pub struct Manager<'a> {
     should_execute: bool,
     should_rerender: bool,
     job: Option<ripgrep::Job<'a>>,
+    preview_job: Option<preview::PreviewJob>,
     pub show_preview: bool,
 
     options: ripgrep::Options,
@@ -23,6 +24,7 @@ impl<'a> Manager<'a> {
             should_execute: false,
             should_rerender: true,
             job: None,
+            preview_job: None,
             show_preview: true,
 
             options: ripgrep::Options {
@@ -114,7 +116,7 @@ impl<'a> Manager<'a> {
             return;
         };
 
-        self.selection_preview = preview::Preview::new(file_path, line_number);
+        self.preview_job = Some(preview::PreviewJob::new(file_path, line_number));
     }
 
     pub fn update(&mut self) -> Result<bool> {
@@ -151,6 +153,14 @@ impl<'a> Manager<'a> {
                 } else {
                     break;
                 }
+            }
+        }
+
+        if let Some(preview_job) = self.preview_job.as_ref() {
+            if let Some(preview) = preview_job.try_recv_preview() {
+                self.selection_preview = Some(preview);
+                self.preview_job = None;
+                should_rerender = true;
             }
         }
 
