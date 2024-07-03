@@ -1,5 +1,5 @@
 use ansi_to_tui::IntoText;
-use ratatui::{prelude::*, widgets::*};
+use ratatui::widgets::*;
 use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
@@ -17,8 +17,8 @@ pub struct Job<'a> {
     rx: mpsc::Receiver<Vec<u8>>,
 
     results_items: Vec<ListItem<'a>>,
-    results_files: Vec<Option<String>>,
-    results_lines: Vec<Option<i32>>,
+    results_files: Vec<String>,
+    results_lines: Vec<i32>,
 }
 
 impl<'a> Job<'a> {
@@ -60,15 +60,8 @@ impl<'a> Job<'a> {
         &self.results_items[..]
     }
 
-    pub fn get_result(&self, index: usize) -> (Option<&str>, Option<i32>) {
-        if index >= self.current_num_results() {
-            return (None, None);
-        }
-
-        return (
-            self.results_files[index].as_deref(),
-            self.results_lines[index],
-        );
+    pub fn get_result(&self, index: usize) -> (&str, i32) {
+        (&self.results_files[index], self.results_lines[index])
     }
 
     pub fn current_num_results(&self) -> usize {
@@ -90,24 +83,19 @@ impl<'a> Job<'a> {
     }
 
     fn read_next_result(&mut self, line: Vec<u8>) -> Result<()> {
-        let text = match line.into_text() {
-            Ok(t) => t,
-            Err(_) => Text::from("Error"),
+        let Ok(text) = line.into_text() else {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid ripgrep output"));
         };
-
         let mut line_iter = line.iter();
-        let first_sep = line_iter.position(|&c| c == b':');
-        let second_sep = line_iter.position(|&c| c == b':');
-
-        let file_name = match first_sep {
-            Some(first) => Self::parse_bytes(&line[..first]),
-            _ => None,
+        let Some(first_sep) = line_iter.position(|&c| c == b':') else {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid ripgrep output"));
+        };
+        let Some(second_sep) = line_iter.position(|&c| c == b':') else {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid ripgrep output"));
         };
 
-        let line_number = match (first_sep, second_sep) {
-            (Some(first), Some(second)) => Self::parse_bytes(&line[first + 1..first + 1 + second]),
-            _ => None,
-        };
+        let file_name = Self::parse_bytes(&line[..first_sep])?;
+        let line_number = Self::parse_bytes(&line[first_sep + 1..first_sep + 1 + second_sep])?;
 
         self.results_items.push(ListItem::new(text));
         self.results_files.push(file_name);
@@ -116,14 +104,13 @@ impl<'a> Job<'a> {
         Ok(())
     }
 
-    fn parse_bytes<T: FromStr>(s: &[u8]) -> Option<T> {
+    fn parse_bytes<T: FromStr>(s: &[u8]) -> Result<T> {
         let Ok(string) = String::from_utf8(strip_ansi_escapes::strip(s)) else {
-            return None;
+            return Err(Error::new(ErrorKind::InvalidData, "invalid ripgrep output"));
         };
-
         match string.parse() {
-            Ok(res) => Some(res),
-            _ => None,
+            Ok(r) => Ok(r),
+            _ => Err(Error::new(ErrorKind::InvalidData, "invalid ripgrep output")),
         }
     }
 

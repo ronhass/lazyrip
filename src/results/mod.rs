@@ -112,10 +112,7 @@ impl<'a> Manager<'a> {
             return;
         };
 
-        let (Some(file_path), line_number) = job.get_result(index) else {
-            return;
-        };
-
+        let (file_path, line_number) = job.get_result(index);
         self.preview_job = Some(preview::PreviewJob::new(file_path, line_number));
     }
 
@@ -194,15 +191,8 @@ impl<'a> Manager<'a> {
             return false;
         };
 
-        let (Some(file_path), line_number) = job.get_result(index) else {
-            return false;
-        };
-
-        let command = match line_number {
-            None => format!("$EDITOR \"{}\"", file_path),
-            Some(n) => format!("$EDITOR +{} \"{}\"", n, file_path),
-        };
-
+        let (file_path, line_number) = job.get_result(index);
+        let command = format!("$EDITOR +{} \"{}\"", line_number, file_path);
         let _ = Command::new("sh").arg("-c").arg(command).status();
         true
     }
