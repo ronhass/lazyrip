@@ -113,8 +113,7 @@ impl<'a> Manager<'a> {
         };
 
         let (file_path, line_number) = job.get_result(index);
-        // TODO: unwrap
-        self.preview_job = Some(preview::PreviewJob::new(file_path, line_number).unwrap());
+        self.preview_job = Some(preview::PreviewJob::new(file_path, line_number));
     }
 
     pub fn update(&mut self) -> Result<bool> {
@@ -154,15 +153,11 @@ impl<'a> Manager<'a> {
             }
         }
 
-        if let Some(preview_job) = self.preview_job.as_mut() {
-            for _ in 1..1000 {
-                let (preview, done) = preview_job.try_recv_preview()?;
+        if let Some(preview_job) = self.preview_job.as_ref() {
+            if let Some(preview) = preview_job.try_recv_preview() {
                 self.selection_preview = Some(preview);
+                self.preview_job = None;
                 should_rerender = true;
-                if done {
-                    self.preview_job = None;
-                    break;
-                }
             }
         }
 
