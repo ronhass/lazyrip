@@ -130,14 +130,14 @@ impl<'a> App<'a> {
                 key: Key::Char('p'),
                 ctrl: true,
                 ..
-            } => self.results_manager.toggle_preview(),
+            } => self.results_manager.toggle_preview()?,
             Input {
                 key: Key::Char('g'),
                 ctrl: true,
                 ..
             } => self.show_glob = true,
-            Input { key: Key::Down, .. } => self.results_manager.next(),
-            Input { key: Key::Up, .. } => self.results_manager.prev(),
+            Input { key: Key::Down, .. } => self.results_manager.next()?,
+            Input { key: Key::Up, .. } => self.results_manager.prev()?,
             Input { key: Key::Esc, .. } => (),
             Input {
                 key: Key::Enter, ..

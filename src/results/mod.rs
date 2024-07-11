@@ -57,63 +57,68 @@ impl<'a> Manager<'a> {
         self.options.show_hidden
     }
 
-    pub fn next(&mut self) {
+    pub fn next(&mut self) -> Result<()> {
         let Some(job) = self.job.as_ref() else {
-            return;
+            return Ok(());
         };
         let num_results = job.current_num_results();
 
         match self.selection_index {
             None => {
                 if num_results > 0 {
-                    self.select(Some(0));
+                    self.select(Some(0))?;
                 }
             }
             Some(index) => {
                 if index + 1 < num_results {
-                    self.select(Some(index + 1));
+                    self.select(Some(index + 1))?;
                 }
             }
-        }
+        };
+
+        Ok(())
     }
 
-    pub fn prev(&mut self) {
+    pub fn prev(&mut self) -> Result<()> {
         let Some(index) = self.selection_index else {
-            return;
+            return Ok(());
         };
         if index > 0 {
-            self.select(Some(index - 1));
+            self.select(Some(index - 1))?;
         }
+
+        Ok(())
     }
 
-    fn select(&mut self, selection: Option<usize>) {
+    fn select(&mut self, selection: Option<usize>) -> Result<()> {
         self.selection_index = selection;
         self.should_rerender = true;
-        self.update_preview();
+        self.update_preview()
     }
 
-    pub fn toggle_preview(&mut self) {
+    pub fn toggle_preview(&mut self) -> Result<()> {
         self.show_preview = !self.show_preview;
         self.should_rerender = true;
-        self.update_preview();
+        self.update_preview()
     }
 
-    fn update_preview(&mut self) {
+    fn update_preview(&mut self) -> Result<()> {
         self.selection_preview = None;
 
         if !self.show_preview {
-            return;
+            return Ok(());
         }
 
         let Some(index) = self.selection_index else {
-            return;
+            return Ok(());
         };
         let Some(job) = self.job.as_ref() else {
-            return;
+            return Ok(());
         };
 
         let (file_path, line_number) = job.get_result(index);
-        self.preview_job = Some(preview::PreviewJob::new(file_path, line_number));
+        self.preview_job = Some(preview::PreviewJob::new(file_path, line_number)?);
+        Ok(())
     }
 
     pub fn update(&mut self) -> Result<bool> {
@@ -125,7 +130,7 @@ impl<'a> Manager<'a> {
     }
 
     fn execute_job(&mut self) -> Result<bool> {
-        self.select(None);
+        self.select(None)?;
 
         if let Some(mut j) = self.job.take() {
             j.finalize()?;
@@ -154,7 +159,7 @@ impl<'a> Manager<'a> {
         }
 
         if let Some(preview_job) = self.preview_job.as_ref() {
-            if let Some(preview) = preview_job.try_recv_preview() {
+            if let Some(preview) = preview_job.try_recv_preview()? {
                 self.selection_preview = Some(preview);
                 self.preview_job = None;
                 should_rerender = true;
